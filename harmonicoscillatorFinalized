@@ -1,0 +1,150 @@
+from numpy.polynomial.hermite import *
+import numpy as np
+import math
+from matplotlib import pyplot as plt
+import matplotlib.animation as animation
+from numpy.random import choice
+
+fig = plt.figure()
+ax = plt.axes(xlim= (-10, 10), ylim = (-5,5))
+line, =ax.plot([], [], lw=2)
+
+
+hbar=1
+m=1
+pi=np.pi
+K=1
+ci=0+1j
+r = np.linspace(-10, 10, 200)
+
+
+
+def init():
+    line.set_data([], [])
+    return line,
+ 
+    
+def HO_Time (K, m, n, t):
+    ci = 0 + 1j
+    En = HO_En(K, m, n)
+    return np.exp(ci * En * t/ hbar)
+def HO_En (K, m, n):
+    return hbar * np.sqrt(K/m) * (n + 1/2 )
+
+def HO_Func(K, m,  n, r):
+    
+  w = np.sqrt(K/m)
+  psi = []
+  herm_coeff = []
+
+  for i in range(n):
+      herm_coeff.append(0)
+  herm_coeff.append(1)
+
+  for x in r:
+    psi.append(math.exp(-m*w*x**2/(2*hbar)) * hermval((m*w/hbar)**0.5 * x, herm_coeff))
+  # normalization factor for the wavefunction:
+  psi = np.multiply(psi, 1 / (math.pow(2, n) * math.factorial(n))**0.5 * (m*w/(pi*hbar))**0.25)
+
+      
+  return psi
+
+x = np.linspace(-5,5,200)
+psi = HO_Func(1, 1, 2, r)
+
+def gauss_packet(x_array, x0, sig, k0):
+   ci = 0+1j
+   G = np.exp(-0.5 * ((x_array - x0)/sig)**2)
+   Norm = 1./(sig * np.sqrt(2*np.pi))
+   P = np.exp(ci * k0 * x_array)
+   return Norm * G * P
+
+def Triangle_Wave(xaxis):
+    tw = np.zeros(len(xaxis))
+    for i in range (0, len(xaxis)):
+        xval = xaxis[i]
+        if xval <= 2:
+            tw[i] = 0
+        elif xval < 3:
+            tw[i] = xval - 2
+        elif xval < 4:
+            tw[i] = -xval + 4
+        else: 
+            tw[i] = 0
+    return tw
+    
+def fourier_analysis (tw, n, r):
+    psi = HO_Func(K,m,n,r)
+    psistar = np.conj(psi)
+    integrand = psistar * tw
+    ####rectangle rule width is called w 
+    w = r[1] - r[0]
+    ###rectangle rule sum will be called rsum
+    rsum = 0.+0j
+    for i in range(0,len(tw)):
+        rsum = rsum +integrand[i] * w
+        
+    return rsum
+    
+
+
+trianglewave = gauss_packet (r, np.pi/4, 0.1, 0.1)
+
+#positionEigenFunction
+
+narray = np.linspace(0,100,101)
+c_array = np.zeros(len(narray), dtype=complex) 
+d_array = np.zeros(len(narray), dtype=complex)     
+    
+for i in range(0,len(narray)):
+    c_array[i] = fourier_analysis(trianglewave,int(narray[i]), r)
+    
+print (np.conj(c_array[100]) * c_array[100])
+
+p_of_en=np.real(np.conj(c_array)*c_array)
+norm = np.sum(p_of_en)
+p_of_en = p_of_en / norm
+
+#print("drew this number",draw)
+#print("Collapsed to random eigenfunction with m =",narray[int(draw[0])])
+draw = choice(narray, 1, p=p_of_en)
+state = int(draw[0])
+
+new_array= HO_Func(K,m, state,r) 
+px_array= np.conj(new_array) * (new_array)
+sum1=np.sum(px_array)
+
+draw2= choice(r, 1, p=px_array/sum1)
+print (draw2)
+
+PositionFx= gauss_packet (r, draw2, 0.1, 0.1)
+d_array[i] = fourier_analysis(PositionFx, int(narray[i]), r)
+
+for i in range(0, len(narray)):
+    d_array[i] = fourier_analysis(PositionFx, int(narray[i]), r)
+    
+
+
+def animate(i):
+    psi_exp= np.zeros(len(trianglewave),dtype=complex)
+    if i<25:
+        for j in range(0, len(narray)):
+            psi_exp = psi_exp + c_array[j]*HO_Func(K,m,int(narray[j]),r) * HO_Time(K,m,int(narray[j]),i)
+    elif i<50:
+        psi_exp = HO_Func(K,m, state,r)*HO_Time(K, m, state, i)
+    else: 
+        for j in range (0, len(narray)):
+            psi_exp = psi_exp + d_array[j] * HO_Func(K,m,int(narray[j]),r) * HO_Time(K,m,int(narray[j]),(i-50))
+
+
+       
+#make an array that will store the values of P(x) which are the values that are currently being plot and we want to take the (psi conjugate * psi) of each of those x values (the probability of each) so that we find the probability of function collapsing to those x values 
+            
+    line.set_ydata( psi_exp )
+    line.set_xdata( r )
+    return line, 
+
+plt.plot(r, trianglewave)
+plt.show()
+
+anim = animation.FuncAnimation( fig, animate, init_func=init,frames= 10000, interval=20, blit=True)
